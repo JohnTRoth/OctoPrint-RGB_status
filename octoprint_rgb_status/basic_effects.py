@@ -47,6 +47,16 @@ def solid_color(strip, color, queue, delay=0, iterations=1, reverse=False):
         strip.setPixelColorRGB(p, *color)
     strip.show()
 
+def solid_with_brightness(strip, color, queue, delay=10, iterations=1, reverse=False, brightness=255, index=-1):
+    if index==-1:
+        for p in range(strip.numPixels()):
+            strip.setPixelColorRGB(p, *color)
+    else:
+        for p in range(strip.numPixels()):
+            strip.setPixelColor(p, strip.getPixelColor(p))
+            strip.setPixelColorRGB(index, *color)
+    strip.setBrightness(brightness)
+    strip.show()
 
 def color_wipe(strip, color, queue, delay=50, iterations=1, reverse=False):
     """Wipe color across display a pixel at a time."""

@@ -6,7 +6,7 @@ import multiprocessing
 from rpi_ws281x import *
 from .utils import *
 from .basic_effects import *
-
+import re
 
 STRIP_SETTINGS = ['led_count', 'led_pin', 'led_freq_hz', 'led_dma', 'led_invert', 'led_brightness', 'led_channel', 'strip_type']
 STRIP_TYPES = {
@@ -39,6 +39,7 @@ EFFECTS = {
     'Pulse': pulse,
     'Knight Rider': knight_rider,
     'Plasma': plasma,
+    'Solid With Brightness': solid_with_brightness,
 }
 
 class RGBStatusPlugin(
@@ -438,10 +439,26 @@ class RGBStatusPlugin(
             }
         }
 
+    def HandleM150(self, comm_instance, phase, cmd, cmd_type, gcode, *args, **kwargs):
+        if gcode and cmd.startswith("M150"):
+            self._logger.info(u"M150 Detected: %s" % (cmd,))
+            # Emulating Marlin 1.1.0's syntax
+            # https://github.com/MarlinFirmware/Marlin/blob/RC/Marlin/Marlin_main.cpp#L6133
+            parameters = {'r':0, 'g':0, 'b':0, 'p':0, 'i':-1}
+            for match in re.finditer(r'([RGUBPIrgubpi]) *(\d*)', cmd):
+                key = match.group(1).lower()
+                # Marlin uses RUB instead of RGB
+                if key == 'u': key = 'g'
+                v = int(match.group(2))
+                parameters[key] = v
+            self._logger.info(u"Running with r: %s g: %s b: %s p: %s i: %s" % (parameters['r'], parameters['g'], parameters['b'], parameters['p'], parameters['i']))
+            self.run_effect('Solid With Brightness', (parameters['r'], parameters['g'], parameters['b'],), delay=10, force=True, brightness=parameters['p'], index=parameters['i'])
+            return None,
 
 __plugin_name__ = 'RGB Status'
 __plugin_pythoncompat__ = ">=2.7,<4"
 __plugin_implementation__ = RGBStatusPlugin()
 __plugin_hooks__ = {
     'octoprint.plugin.softwareupdate.check_config': __plugin_implementation__.get_update_information,
+    'octoprint.comm.protocol.gcode.queuing': __plugin_implementation__.HandleM150
 }
