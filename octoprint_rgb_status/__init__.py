@@ -7,6 +7,7 @@ from rpi_ws281x import *
 from .utils import *
 from .basic_effects import *
 import re
+import json
 
 STRIP_SETTINGS = ['led_count', 'led_pin', 'led_freq_hz', 'led_dma', 'led_invert', 'led_brightness', 'led_channel', 'strip_type']
 STRIP_TYPES = {
@@ -355,7 +356,9 @@ class RGBStatusPlugin(
                     progress_color=hex_to_rgb(self._settings.get(['progress_color'])),
                 )
             elif hasattr(self, '_queue'):
-                self._queue.put(progress)
+                json_str = json.JSONEncoder().encode({'data':{'progress': progress}})
+                self._logger.info('Added to queue: ' + json_str)
+                self._queue.put(json_str)
         elif self.strip is None:
             self._logger.error('Error setting progress: The strip object does not exist. Did it fail to initialize?')
 
@@ -375,7 +378,8 @@ class RGBStatusPlugin(
         while self.effect_is_alive():
             if self.effect_can_be_killed(force=force):
                 self._logger.info('Putting KILL code in queue')
-                self._queue.put('KILL')
+                json_str = json.JSONEncoder().encode({'data':{'cmd': 'KILL'}})
+                self._queue.put(json_str)
                 delattr(self, '_queue')
                 self._shutdown_event.set()
                 delattr(self, '_shutdown_event')
@@ -452,7 +456,20 @@ class RGBStatusPlugin(
                 v = int(match.group(2))
                 parameters[key] = v
             self._logger.info(u"Running with r: %s g: %s b: %s p: %s i: %s" % (parameters['r'], parameters['g'], parameters['b'], parameters['p'], parameters['i']))
-            self.run_effect('Solid With Brightness', (parameters['r'], parameters['g'], parameters['b'],), delay=10, force=True, brightness=parameters['p'], index=parameters['i'])
+
+            if self._effect.name != 'Solid With Brightness':
+                self.run_effect(
+                    'Solid With Brightness', 
+                    (parameters['r'], parameters['g'], parameters['b'],), 
+                    delay=10, 
+                    force=True, 
+                    brightness=parameters['p'], 
+                    index=parameters['i']
+                )
+            elif hasattr(self, '_queue'):
+                json_str = json.JSONEncoder().encode({'data':{'r': parameters['r'],'g': parameters['g'],'b': parameters['b'],'p': parameters['p'],'i': parameters['i']}})
+                self._logger.info('Added to queue: ' + json_str)
+                self._queue.put(json_str)
             return None,
 
 __plugin_name__ = 'RGB Status'

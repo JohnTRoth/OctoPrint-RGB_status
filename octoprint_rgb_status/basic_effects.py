@@ -5,6 +5,7 @@ from .utils import blend_colors
 from datetime import datetime
 import time
 import traceback
+import json
 
 
 def run_effect(effect, lock, queue, settings, color, delay, shutdown_event, reverse=False, **kwargs):
@@ -14,12 +15,36 @@ def run_effect(effect, lock, queue, settings, color, delay, shutdown_event, reve
     try:
         while not shutdown_event.is_set():
            if not queue.empty():
-               message = queue.get()
-               if message == 'KILL':
-                   break
-               elif 'progress' in kwargs:
-                   kwargs['progress'] = int(message)
-           effect(strip, color, queue, delay, reverse=reverse, **kwargs)
+               json_str = json.loads(queue.get())
+               data = {}
+               for key in json['data']:
+                   data[key] = json['data'][key]
+               if "cmd" in data:
+                   if data["cmd"] == "KILL":
+                       break
+               if "progress" in data:
+                   kwargs['progress'] = data["progress"]
+               r = 0
+               if "r" in data:
+                   r = data["r"]
+               g = 0
+               if "g" in data:
+                   g = data["g"]
+               b = 0
+               if "b" in data:
+                   b = data["b"]
+               if "r" in data or "g" in data or "b" in data:
+                   color = (r, g, b,)
+               p = 0
+               if "p" in data:
+                   p = data["p"]
+               i = -1
+               if "i" in data:
+                   i = data["i"]
+           if effect == "solid_with_brightness":
+               effect(strip, color, queue, delay, reverse=reverse, brightness=p, index = i)
+           else: 
+               effect(strip, color, queue, delay, reverse=reverse, **kwargs)
     finally:
         lock.release()
         while not queue.empty():
