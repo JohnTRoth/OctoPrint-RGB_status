@@ -39,6 +39,9 @@ def run_effect(effect, lock, queue, settings, color, delay, shutdown_event, reve
                p = 0
                if "brightness" in data:
                    p = data["brightness"]
+               d = 10
+               if "delay" in data:
+                   delay = data["delay"]
                i = -1
                if "index" in data:
                    i = data["index"]

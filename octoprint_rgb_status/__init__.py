@@ -448,32 +448,30 @@ class RGBStatusPlugin(
             self._logger.info(u"M150 Detected: %s" % (cmd,))
             # Emulating Marlin 1.1.0's syntax
             # https://github.com/MarlinFirmware/Marlin/blob/RC/Marlin/Marlin_main.cpp#L6133
-            parameters = {'r':0, 'g':0, 'b':0, 'p':0, 'i':-1}
+            parameters = {'r':0, 'g':0, 'b':0, 'p':0, 'i':-1, 'd':10}
             effect_id = 9
-            for match in re.finditer(r'([RGUBPIErgubpie]) *(\d*)', cmd):
+            for match in re.finditer(r'([RGUBPIEDrgubpied]) *(\d*)', cmd):
                 key = match.group(1).lower()
-                # Marlin uses RUB instead of RGB
-                if key == 'u': key = 'g'
+                if key == 'u': key = 'g' # Marlin uses RUB instead of RGB
                 if key == 'e':
                     effect_id = int(match.group(2))
                 else:
-                    v = int(match.group(2))
-                    parameters[key] = v
+                    parameters[key] = int(match.group(2))
             effect_name = list(EFFECTS.items())[effect_id][0]
-            self._logger.info(u"Running with r: %s g: %s b: %s p: %s i: %s" % (parameters['r'], parameters['g'], parameters['b'], parameters['p'], parameters['i']))
+            self._logger.info(u"Running with r: %s g: %s b: %s brightness: %s index: %s delay: %s" % (parameters['r'], parameters['g'], parameters['b'], parameters['p'], parameters['i'], parameters['d']))
             self._logger.info(u"Effect: %s" % effect_name)
 
             if self._effect.name != effect_name:
                 self.run_effect(
                     effect_name, 
                     (parameters['r'], parameters['g'], parameters['b'],), 
-                    delay=10, 
+                    delay=parameters['d'], 
                     force=True,
                     brightness=parameters['p'], 
                     index=parameters['i']
                 )
             elif hasattr(self, '_queue'):
-                json_str = json.JSONEncoder().encode({'data':{'r': parameters['r'],'g': parameters['g'],'b': parameters['b'],'brightness': parameters['p'],'index': parameters['i']}})
+                json_str = json.JSONEncoder().encode({'data':{'r': parameters['r'],'g': parameters['g'],'b': parameters['b'],'brightness': parameters['p'],'index': parameters['i'],'delay':parameters['d']}})
                 self._logger.info('Added to queue: ' + json_str)
                 self._queue.put(json_str)
             return None,
