@@ -7,6 +7,7 @@ from rpi_ws281x import *
 from .utils import *
 from .basic_effects import *
 import re
+import json
 
 STRIP_SETTINGS = ['led_count', 'led_pin', 'led_freq_hz', 'led_dma', 'led_invert', 'led_brightness', 'led_channel', 'strip_type']
 STRIP_TYPES = {
@@ -355,7 +356,9 @@ class RGBStatusPlugin(
                     progress_color=hex_to_rgb(self._settings.get(['progress_color'])),
                 )
             elif hasattr(self, '_queue'):
-                self._queue.put(progress)
+                json_str = json.JSONEncoder().encode({'data':{'progress': progress}})
+                self._logger.info('Added to queue: ' + json_str)
+                self._queue.put(json_str)
         elif self.strip is None:
             self._logger.error('Error setting progress: The strip object does not exist. Did it fail to initialize?')
 
@@ -375,7 +378,8 @@ class RGBStatusPlugin(
         while self.effect_is_alive():
             if self.effect_can_be_killed(force=force):
                 self._logger.info('Putting KILL code in queue')
-                self._queue.put('KILL')
+                json_str = json.JSONEncoder().encode({'data':{'cmd': 'KILL'}})
+                self._queue.put(json_str)
                 delattr(self, '_queue')
                 self._shutdown_event.set()
                 delattr(self, '_shutdown_event')
@@ -445,14 +449,33 @@ class RGBStatusPlugin(
             # Emulating Marlin 1.1.0's syntax
             # https://github.com/MarlinFirmware/Marlin/blob/RC/Marlin/Marlin_main.cpp#L6133
             parameters = {'r':0, 'g':0, 'b':0, 'p':0, 'i':-1}
-            for match in re.finditer(r'([RGUBPIrgubpi]) *(\d*)', cmd):
+            effect_id = 9
+            for match in re.finditer(r'([RGUBPIErgubpie]) *(\d*)', cmd):
                 key = match.group(1).lower()
                 # Marlin uses RUB instead of RGB
                 if key == 'u': key = 'g'
-                v = int(match.group(2))
-                parameters[key] = v
+                if key == 'e':
+                    effect_id = int(match.group(2))
+                else:
+                    v = int(match.group(2))
+                    parameters[key] = v
+            effect_name = list(EFFECTS.items())[effect_id][0]
             self._logger.info(u"Running with r: %s g: %s b: %s p: %s i: %s" % (parameters['r'], parameters['g'], parameters['b'], parameters['p'], parameters['i']))
-            self.run_effect('Solid With Brightness', (parameters['r'], parameters['g'], parameters['b'],), delay=10, force=True, brightness=parameters['p'], index=parameters['i'])
+            self._logger.info(u"Effect: %s" % effect_name)
+
+            if self._effect.name != effect_name:
+                self.run_effect(
+                    effect_name, 
+                    (parameters['r'], parameters['g'], parameters['b'],), 
+                    delay=10, 
+                    force=True,
+                    brightness=parameters['p'], 
+                    index=parameters['i']
+                )
+            elif hasattr(self, '_queue'):
+                json_str = json.JSONEncoder().encode({'data':{'r': parameters['r'],'g': parameters['g'],'b': parameters['b'],'brightness': parameters['p'],'index': parameters['i']}})
+                self._logger.info('Added to queue: ' + json_str)
+                self._queue.put(json_str)
             return None,
 
 __plugin_name__ = 'RGB Status'
