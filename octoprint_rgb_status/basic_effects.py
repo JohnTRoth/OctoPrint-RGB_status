@@ -5,6 +5,7 @@ from .utils import blend_colors
 from datetime import datetime
 import time
 import traceback
+import json
 
 
 def run_effect(effect, lock, queue, settings, color, delay, shutdown_event, reverse=False, **kwargs):
@@ -14,11 +15,35 @@ def run_effect(effect, lock, queue, settings, color, delay, shutdown_event, reve
     try:
         while not shutdown_event.is_set():
            if not queue.empty():
-               message = queue.get()
-               if message == 'KILL':
-                   break
-               elif 'progress' in kwargs:
-                   kwargs['progress'] = int(message)
+               raw_json_str = queue.get()
+               json_str = json.loads(raw_json_str)
+               data = {}
+               for key in json_str['data']:
+                   data[key] = json_str['data'][key]
+               if "cmd" in data:
+                   if data["cmd"] == "KILL":
+                       break
+               if "progress" in data:
+                   kwargs['progress'] = data["progress"]
+               if "r" in data or "g" in data or "b" in data:
+                   r = 0
+                   if "r" in data:
+                       r = data["r"]
+                   g = 0
+                   if "g" in data:
+                       g = data["g"]
+                   b = 0
+                   if "b" in data:
+                       b = data["b"]
+                   color = (r, g, b,)
+               p = 0
+               if "brightness" in data:
+                   p = data["brightness"]
+               i = -1
+               if "index" in data:
+                   i = data["index"]
+               kwargs['index'] = i
+               kwargs['brightness'] = p
            effect(strip, color, queue, delay, reverse=reverse, **kwargs)
     finally:
         lock.release()
@@ -27,7 +52,7 @@ def run_effect(effect, lock, queue, settings, color, delay, shutdown_event, reve
         queue.close()
         queue.join_thread()
 
-def progress_effect(strip, color, queue, delay=0, iterations=1, reverse=False, progress=0, progress_color=None):
+def progress_effect(strip, color, queue, delay=0, iterations=1, reverse=False, progress=0, progress_color=None, **kwargs):
    perc = float(progress) / 100 * float(strip.numPixels())
    pixels_range = range(strip.numPixels())
    if reverse:
@@ -42,12 +67,12 @@ def progress_effect(strip, color, queue, delay=0, iterations=1, reverse=False, p
    strip.show()
 
 # Define functions which animate LEDs in various ways.
-def solid_color(strip, color, queue, delay=0, iterations=1, reverse=False):
+def solid_color(strip, color, queue, delay=0, iterations=1, reverse=False, **kwargs):
     for p in range(strip.numPixels()):
         strip.setPixelColorRGB(p, *color)
     strip.show()
 
-def solid_with_brightness(strip, color, queue, delay=10, iterations=1, reverse=False, brightness=255, index=-1):
+def solid_with_brightness(strip, color, queue, delay=10, iterations=1, reverse=False, brightness=255, index=-1, **kwargs):
     if index==-1:
         for p in range(strip.numPixels()):
             strip.setPixelColorRGB(p, *color)
@@ -58,7 +83,7 @@ def solid_with_brightness(strip, color, queue, delay=10, iterations=1, reverse=F
     strip.setBrightness(brightness)
     strip.show()
 
-def color_wipe(strip, color, queue, delay=50, iterations=1, reverse=False):
+def color_wipe(strip, color, queue, delay=50, iterations=1, reverse=False, **kwargs):
     """Wipe color across display a pixel at a time."""
     pixels_range = range(strip.numPixels())
     if reverse:
@@ -79,7 +104,7 @@ def color_wipe(strip, color, queue, delay=50, iterations=1, reverse=False):
         time.sleep(delay/100.0)
 
 
-def theater_chase(strip, color, queue, delay=50, iterations=10, reverse=False):
+def theater_chase(strip, color, queue, delay=50, iterations=10, reverse=False, **kwargs):
     """Movie theater light style chaser animation."""
     pixels_range = range(0, strip.numPixels(), 3)
     if reverse:
@@ -109,7 +134,7 @@ def wheel(pos):
         return Color(0, pos * 3, 255 - pos * 3)
 
 
-def rainbow(strip, color, queue, delay=20, iterations=1, reverse=False):
+def rainbow(strip, color, queue, delay=20, iterations=1, reverse=False, **kwargs):
     """Draw rainbow that fades across all pixels at once."""
     for i in range(256*iterations):
         for p in range(strip.numPixels()):
@@ -120,7 +145,7 @@ def rainbow(strip, color, queue, delay=20, iterations=1, reverse=False):
         time.sleep(delay/1000.0)
 
 
-def rainbow_cycle(strip, color, queue, delay=20, iterations=5, reverse=False):
+def rainbow_cycle(strip, color, queue, delay=20, iterations=5, reverse=False, **kwargs):
     """Draw rainbow that uniformly distributes itself across all pixels."""
     for i in range(256*iterations):
         for p in range(strip.numPixels()):
@@ -131,7 +156,7 @@ def rainbow_cycle(strip, color, queue, delay=20, iterations=5, reverse=False):
         time.sleep(delay/1000.0)
 
 
-def theater_chase_rainbow(strip, color, queue, delay=50, iterations=1, reverse=False):
+def theater_chase_rainbow(strip, color, queue, delay=50, iterations=1, reverse=False, **kwargs):
     """Rainbow movie theater light style chaser animation."""
     for i in range(256*iterations):
         for r in range(3):
@@ -145,7 +170,7 @@ def theater_chase_rainbow(strip, color, queue, delay=50, iterations=1, reverse=F
                 strip.setPixelColor(p+r, 0)
 
 
-def pulse(strip, color, queue, delay, iterations=1, reverse=False):
+def pulse(strip, color, queue, delay, iterations=1, reverse=False, **kwargs):
     for p in range(strip.numPixels()):
         strip.setPixelColorRGB(p, *color)
     for i in range(255):
@@ -162,7 +187,7 @@ def pulse(strip, color, queue, delay, iterations=1, reverse=False):
         time.sleep(delay/1000.0)
 
 
-def knight_rider(strip, color, queue, delay, iterations=1, reverse=False):
+def knight_rider(strip, color, queue, delay, iterations=1, reverse=False, **kwargs):
     for active_pixel in range(strip.numPixels()):
         for i in range(strip.numPixels()):
             if i == active_pixel or i+1 == active_pixel or i-1 == active_pixel:
@@ -185,7 +210,7 @@ def knight_rider(strip, color, queue, delay, iterations=1, reverse=False):
         time.sleep(delay/100.0)
         
 
-def plasma(strip, color, queue, delay, iterations=1000, reverse=False):
+def plasma(strip, color, queue, delay, iterations=1000, reverse=False, **kwargs):
     import colorsys
     import math
     pixels_range = list(range(strip.numPixels()))
